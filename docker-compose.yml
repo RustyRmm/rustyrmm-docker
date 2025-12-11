@@ -1,5 +1,4 @@
 version: '3.8'
-
 # Production docker-compose file for RustyRMM
 # This file pulls pre-built images from Docker Hub instead of building locally
 #
@@ -52,8 +51,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    volumes:
-      - ./database/migrations:/app/database/migrations:ro
+    # Note: migrations are included in the Docker image, so no volume mount needed
     networks:
       - rustyrmm-network
     command: >
