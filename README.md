@@ -19,13 +19,8 @@ A multi-tenant Remote Monitoring and Management (RMM) API platform built with No
 
 ## Installation
 
-### 1. Clone the repository
-```bash
-git clone <repo-url>
-cd rustyrmm
-```
+### 1) Configure Environment Variables
 
-### 2. Configure Environment Variables
 Copy the example environment file and edit it:
 
 ```bash
@@ -36,41 +31,38 @@ nano .env
 At a minimum, configure:
 - `JWT_SECRET`
 - `SUPER_ADMIN_PASSWORD`
-- Database credentials (see below)
+- Database variables (see below)
 
 ---
 
-## Database Configuration (Important)
+## Database Modes
 
-RustyRMM supports **two database modes** using Docker Compose profiles.
+RustyRMM supports **two database modes**, implemented as **two compose files**:
 
-### Option A: Use Docker-managed MySQL (recommended for local/dev)
+- `docker-compose.yml` → **bundled MySQL** (default, easiest for local/dev)
+- `docker-compose.nodb.yml` → **bring your own MySQL** (recommended for production)
 
-This will spin up a MySQL 8 container automatically.
+### Option A: Bundled MySQL (default)
 
-```bash
-docker compose --profile localdb up -d
-```
-
-In this mode:
-- MySQL runs as a Docker container
-- Data is stored in a Docker volume
-- `DB_HOST` defaults to `db`
-- Schema and initial data are automatically applied
-
-No external database is required.
-
----
-
-### Option B: Use an Existing MySQL Instance (recommended for production)
-
-If you already have MySQL running (bare metal, VM, RDS, etc.), **do not enable the `localdb` profile**.
+This starts a MySQL 8 container, applies `./database/schema.sql`, then the API runs init + migrations.
 
 ```bash
 docker compose up -d
 ```
 
-Update `.env` to point to your existing database:
+Notes:
+- MySQL data is persisted in a Docker volume (`mysql_data`)
+- The API connects to MySQL using `DB_HOST=db` internally
+
+### Option B: Bring Your Own MySQL (NoDB compose)
+
+Use this if you already have MySQL running (bare metal, VM, RDS, etc.).
+
+```bash
+docker compose -f docker-compose.nodb.yml up -d
+```
+
+Your `.env` **must** include these values:
 
 ```env
 DB_HOST=your-mysql-hostname-or-ip
@@ -80,12 +72,13 @@ DB_PASSWORD=strongpassword
 DB_NAME=rustyrmm
 ```
 
-Notes:
-- Ensure the database already exists
-- The configured user must have full schema permissions
-- Database initialization and migrations are handled automatically by the API container
+Requirements:
+- The database must already exist (`DB_NAME`)
+- The user must have permissions to create/alter tables (init + migrations)
+- Ensure your MySQL instance allows connections from the Docker host/network
 
-### MySQL on the Docker Host
+#### MySQL on the Docker Host
+
 If MySQL is running on the same machine as Docker:
 
 - **macOS / Windows**
@@ -175,8 +168,8 @@ All values can be overridden via `.env`.
 - Rotate `JWT_SECRET` regularly
 - Use strong database passwords
 - Enable HTTPS in production
-- Add rate limiting and WAF protections
-- Keep Docker images and dependencies up to date
+- Add rate limiting / WAF protections
+- Keep images and dependencies up to date
 
 ---
 
@@ -189,3 +182,4 @@ ISC
 For issues or questions:
 - Review the project documentation
 - Open an issue in the repository
+

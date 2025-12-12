@@ -1,0 +1,59 @@
+version: '3.8'
+# RustyRMM - NoDB docker-compose (bring your own MySQL)
+#
+# Usage:
+#   1. Copy docker-compose.env.example to .env and configure it
+#   2. Ensure your MySQL instance is reachable and the DB/user exist
+#   3. Run: docker compose -f docker-compose.nodb.yaml up -d
+
+services:
+  api:
+    image: smugzombie/rustyrmm-api:${VERSION:-latest}
+    container_name: rustyrmm-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+
+      # Point these at your existing MySQL instance via .env
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+
+      JWT_SECRET: ${JWT_SECRET:-change_this_to_a_secure_random_string_in_production}
+      SUPER_ADMIN_USERNAME: ${SUPER_ADMIN_USERNAME:-admin}
+      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:-admin@rustyrmm.com}
+      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:-N0R3@llyChangeMe123!}
+    networks:
+      - rustyrmm-network
+    command: >
+      sh -c "
+        echo 'Waiting for database to be ready...' &&
+        sleep 10 &&
+        echo 'Initializing database schema...' &&
+        node database/init-db.js &&
+        echo 'Running migrations...' &&
+        node database/migrations/run-migration.js &&
+        echo 'Starting server...' &&
+        node server.js
+      "
+
+  nginx:
+    image: smugzombie/rustyrmm-nginx:${VERSION:-latest}
+    container_name: rustyrmm-nginx
+    restart: unless-stopped
+    ports:
+      - "${PORT:-80}:80"
+    depends_on:
+      - api
+    networks:
+      - rustyrmm-network
+
+networks:
+  rustyrmm-network:
+    driver: bridge
+

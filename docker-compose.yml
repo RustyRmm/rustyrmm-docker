@@ -1,13 +1,19 @@
 version: '3.8'
+# RustyRMM - Default docker-compose (includes a bundled MySQL server)
+#
+# Usage:
+#   1. Copy docker-compose.env.example to .env and configure it
+#   2. Run: docker compose up -d
 
 services:
   db:
-    profiles: ["localdb"]
     image: mysql:8.0
     container_name: rustyrmm-db
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rustyrmm_root_password}
+      # NOTE: DB_PASSWORD is used for both the root password and app user password by default.
+      # You can override root separately with DB_ROOT_PASSWORD if you want.
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-${DB_PASSWORD:-rustyrmm_root_password}}
       MYSQL_DATABASE: ${DB_NAME:-rustyrmm}
       MYSQL_USER: ${DB_USER:-rustyrmm}
       MYSQL_PASSWORD: ${DB_PASSWORD:-my_rusty_password}
@@ -17,10 +23,10 @@ services:
       - mysql_data:/var/lib/mysql
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-rustyrmm_root_password}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-${DB_PASSWORD:-rustyrmm_root_password}}"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
     networks:
       - rustyrmm-network
 
@@ -34,10 +40,9 @@ services:
       NODE_ENV: production
       PORT: 3000
 
-      # If using dockerized db, set DB_HOST=db in .env
-      # If using external db, set DB_HOST to that host in .env
-      DB_HOST: ${DB_HOST:-db}
-      DB_PORT: ${DB_PORT:-3306}
+      # In the default compose, the DB hostname is the 'db' service
+      DB_HOST: db
+      DB_PORT: 3306
       DB_USER: ${DB_USER:-rustyrmm}
       DB_PASSWORD: ${DB_PASSWORD:-my_rusty_password}
       DB_NAME: ${DB_NAME:-rustyrmm}
@@ -46,21 +51,19 @@ services:
       SUPER_ADMIN_USERNAME: ${SUPER_ADMIN_USERNAME:-admin}
       SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:-admin@rustyrmm.com}
       SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:-N0R3@llyChangeMe123!}
-
-    # only wait for db health when localdb profile is used
     depends_on:
       db:
         condition: service_healthy
-
     networks:
       - rustyrmm-network
-
     command: >
       sh -c "
         echo 'Waiting for database to be ready...' &&
         sleep 10 &&
         echo 'Initializing database schema...' &&
         node database/init-db.js &&
+        echo 'Running migrations...' &&
+        node database/migrations/run-migration.js &&
         echo 'Starting server...' &&
         node server.js
       "
@@ -83,3 +86,4 @@ volumes:
 networks:
   rustyrmm-network:
     driver: bridge
+
