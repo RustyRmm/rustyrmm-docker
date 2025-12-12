@@ -1,19 +1,13 @@
 version: '3.8'
-# Production docker-compose file for RustyRMM
-# This file pulls pre-built images from Docker Hub instead of building locally
-#
-# Usage:
-#   1. Set DOCKERHUB_USERNAME environment variable (or update image names below)
-#   2. Copy docker-compose.env.example to .env and configure it
-#   3. Run: docker-compose -f docker-compose.yml up -d
 
 services:
   db:
+    profiles: ["localdb"]
     image: mysql:8.0
     container_name: rustyrmm-db
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-rustyrmm_root_password}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rustyrmm_root_password}
       MYSQL_DATABASE: ${DB_NAME:-rustyrmm}
       MYSQL_USER: ${DB_USER:-rustyrmm}
       MYSQL_PASSWORD: ${DB_PASSWORD:-my_rusty_password}
@@ -23,7 +17,7 @@ services:
       - mysql_data:/var/lib/mysql
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-rustyrmm_root_password}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-rustyrmm_root_password}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -39,21 +33,28 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      DB_HOST: db
-      DB_PORT: 3306
+
+      # If using dockerized db, set DB_HOST=db in .env
+      # If using external db, set DB_HOST to that host in .env
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-3306}
       DB_USER: ${DB_USER:-rustyrmm}
       DB_PASSWORD: ${DB_PASSWORD:-my_rusty_password}
       DB_NAME: ${DB_NAME:-rustyrmm}
+
       JWT_SECRET: ${JWT_SECRET:-change_this_to_a_secure_random_string_in_production}
       SUPER_ADMIN_USERNAME: ${SUPER_ADMIN_USERNAME:-admin}
       SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:-admin@rustyrmm.com}
       SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:-N0R3@llyChangeMe123!}
+
+    # only wait for db health when localdb profile is used
     depends_on:
       db:
         condition: service_healthy
-    # Note: migrations are included in the Docker image, so no volume mount needed
+
     networks:
       - rustyrmm-network
+
     command: >
       sh -c "
         echo 'Waiting for database to be ready...' &&
