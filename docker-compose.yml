@@ -61,8 +61,6 @@ services:
         sleep 10 &&
         echo 'Initializing database schema...' &&
         node database/init-db.js &&
-        echo 'Running migrations...' &&
-        node database/migrations/run-migration.js &&
         echo 'Starting server...' &&
         node server.js
       "
