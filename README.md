@@ -5,7 +5,7 @@ A multi-tenant Remote Monitoring and Management (RMM) API platform built with No
 ## Features
 
 - **Multi-tenant Architecture**: Support for multiple tenants with branch management
-- **Agent Management**: Register and manage agents across Windows, Mac, and Linux
+- **Agent Management**: Register and manage agents across Windows, macOS, and Linux
 - **Task System**: Create and manage tasks (reboot, restart agent, etc.) with scheduling support
 - **Real-time Metrics**: Track agent uptime, RAM, CPU, and disk usage
 - **Role-based Access**: Superuser, admin, and user roles with tenant-based access control
@@ -14,78 +14,171 @@ A multi-tenant Remote Monitoring and Management (RMM) API platform built with No
 
 ## Prerequisites
 
-- Docker / Compose
+- Docker
+- Docker Compose (v2+)
 
 ## Installation
 
-1. **Clone the repository** (or navigate to the project directory)
+### 1. Clone the repository
+```bash
+git clone <repo-url>
+cd rustyrmm
+```
 
-2. **Configure Environment Variables**
+### 2. Configure Environment Variables
+Copy the example environment file and edit it:
+
 ```bash
 cp docker-compose.env.example .env
 nano .env
 ```
-3. **Spinup your Environment**
+
+At a minimum, configure:
+- `JWT_SECRET`
+- `SUPER_ADMIN_PASSWORD`
+- Database credentials (see below)
+
+---
+
+## Database Configuration (Important)
+
+RustyRMM supports **two database modes** using Docker Compose profiles.
+
+### Option A: Use Docker-managed MySQL (recommended for local/dev)
+
+This will spin up a MySQL 8 container automatically.
+
+```bash
+docker compose --profile localdb up -d
+```
+
+In this mode:
+- MySQL runs as a Docker container
+- Data is stored in a Docker volume
+- `DB_HOST` defaults to `db`
+- Schema and initial data are automatically applied
+
+No external database is required.
+
+---
+
+### Option B: Use an Existing MySQL Instance (recommended for production)
+
+If you already have MySQL running (bare metal, VM, RDS, etc.), **do not enable the `localdb` profile**.
+
 ```bash
 docker compose up -d
 ```
 
-The Service will be available at `http://localhost:3000`
-Swagger documentation will be available at `http://localhost:3000/api/api-docs`
+Update `.env` to point to your existing database:
 
-### Superuser Access
+```env
+DB_HOST=your-mysql-hostname-or-ip
+DB_PORT=3306
+DB_USER=rustyrmm
+DB_PASSWORD=strongpassword
+DB_NAME=rustyrmm
+```
+
+Notes:
+- Ensure the database already exists
+- The configured user must have full schema permissions
+- Database initialization and migrations are handled automatically by the API container
+
+### MySQL on the Docker Host
+If MySQL is running on the same machine as Docker:
+
+- **macOS / Windows**
+```env
+DB_HOST=host.docker.internal
+```
+
+- **Linux**
+```env
+DB_HOST=172.17.0.1
+```
+
+---
+
+## Service Access
+
+- **API**: http://localhost:3000
+- **Swagger Docs**: http://localhost:3000/api/api-docs
+
+## Superuser Access
 
 Superusers can:
 - View all tenants and agents
 - Switch between tenant contexts using `POST /tenants/switch`
 - Access all resources regardless of tenant association
 
-Regular users are associated with specific tenants and can only access resources within their assigned tenants.
+Regular users are restricted to their assigned tenants.
+
+---
 
 ## Agent Registration Flow
 
-1. **Create a Branch**: A tenant owner creates a branch, which generates a 32-character alphanumeric registration code
-2. **Agent Registration**: The agent calls `POST /agent/register` with:
-   - `hostname`: Agent hostname
-   - `OS`: Operating system string (e.g., "win 10 x64")
-   - `arch`: Architecture (`win`, `osx`, or `lin`)
-   - `localIdentifier`: Local UUID/GUID
-   - `registrationToken`: The 32-character registration code
-3. **Agent Check-in**: Agents periodically call `POST /agent/checkin` with:
-   - `agent_id`: Server-assigned UUID
-   - `local_id`: Local identifier
-   - `uptime`, `ram`, `cpu`, `disk`: Current metrics
-4. **Task Execution**: If a pending task exists, it's returned in the check-in response. The agent executes it and submits results via `POST /tasks/:task_id`
+1. **Create a Branch**
+   - Generates a 32-character alphanumeric registration code
+
+2. **Agent Registration**
+   - Endpoint: `POST /agent/register`
+   - Payload:
+     - `hostname`
+     - `OS` (e.g. `win 10 x64`)
+     - `arch` (`win`, `osx`, `lin`)
+     - `localIdentifier`
+     - `registrationToken`
+
+3. **Agent Check-in**
+   - Endpoint: `POST /agent/checkin`
+   - Payload:
+     - `agent_id`
+     - `local_id`
+     - `uptime`, `ram`, `cpu`, `disk`
+
+4. **Task Execution**
+   - Pending tasks are returned during check-in
+   - Results submitted to `POST /tasks/:task_id`
+
+---
 
 ## Task Management
 
-Tasks can be created as:
-- **Immediate**: Available for pickup on next agent check-in
-- **Scheduled**: Available only after the scheduled time
+Tasks may be:
+- **Immediate**: Executed on next agent check-in
+- **Scheduled**: Executed after a specified time
 
-Supported task types:
-- `reboot`: Reboot the agent system
-- `restart_agent`: Restart the agent service
-- etc..
+Supported task types include:
+- `reboot`
+- `restart_agent`
+- *(extensible)*
+
+---
 
 ## Default Super Admin Credentials
 
-After running `npm run init-db`, the default super admin credentials are:
+On first startup, a super admin account is created:
 
-- **Username**: `admin` (or as set in `.env`)
-- **Email**: `admin@rustyrmm.com` (or as set in `.env`)
-- **Password**: `N0R3@llyChangeMe123!` (or as set in `.env`)
+- **Username**: `admin`
+- **Email**: `admin@rustyrmm.com`
+- **Password**: `N0R3@llyChangeMe123!`
 
-**⚠️ IMPORTANT**: Change the default password immediately after first login!
+All values can be overridden via `.env`.
+
+**⚠️ IMPORTANT:** Change this password immediately after first login.
+
+---
 
 ## Security Considerations
 
-- Change default JWT secret in production
-- Use strong passwords for database and super admin
-- Implement rate limiting for production
-- Use HTTPS in production
-- Regularly rotate API tokens
-- Keep dependencies up to date
+- Rotate `JWT_SECRET` regularly
+- Use strong database passwords
+- Enable HTTPS in production
+- Add rate limiting and WAF protections
+- Keep Docker images and dependencies up to date
+
+---
 
 ## License
 
@@ -93,5 +186,6 @@ ISC
 
 ## Support
 
-For issues and questions, please refer to the project documentation or create an issue in the repository.
-
+For issues or questions:
+- Review the project documentation
+- Open an issue in the repository
